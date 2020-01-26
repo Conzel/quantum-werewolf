@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import List
+from common import Roles
 import numpy as np
 import random
 
@@ -7,15 +8,6 @@ import random
 # The whole game is a NxPxR tensor, with N being the number of worlds, P being the amount of players and R being
 # the number of roles available. The roles are one-hot encoded, that means if we are in world 1, player 1, the
 # role vector is vector that has a 1 at the corresponding role they have.
-
-class Roles(Enum):
-    """Enum used to identify which roles belong in which column in the one-hot encoded Vector.
-    Dead is a virtual role and will not count to the number of roles in the code.
-    """
-    WEREWOLF = 0
-    VILLAGER = 1
-    SEER = 2
-    DEAD = 3  # must be the last ROLE!
 
 def sample_worlds(N: int, P: int, R: int, role_dist: List[int]) -> np.ndarray:
     """
@@ -27,7 +19,7 @@ def sample_worlds(N: int, P: int, R: int, role_dist: List[int]) -> np.ndarray:
     :return: Sampled world array (size N x P x (R + 1))
     """
     worlds = np.zeros([N, P, R + 1])
-    assert sum(role_dist) == P and len(role_dist) == R, "The role distribution was not valid"
+    assert sum(role_dist) == P, "The role distribution was not valid"
     for n in range(N):
         one_hot_roles = np.hstack((one_hot_from_role_dist(role_dist), np.zeros((P, 1))))
         worlds[n, :, :] = one_hot_roles

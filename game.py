@@ -1,45 +1,57 @@
 from worlds import sample_worlds
 import numpy as np
-from enum import Enum
+from common import N, P, R, NUM_WOLVES, ROLE_DIST, Roles
 
-# we will later just read these from the global configurations
-N = 500
-P = 4
-R = 3
-role_dist = [1, 2, 1]
-
-class Roles(Enum):
-    """Enum used to identify which roles belong in which column in the one-hot encoded Vector.
-    Dead is a virtual role and will not count to the number of roles in the code.
-    """
-    WEREWOLF = 0
-    VILLAGER = 1
-    SEER = 2
-    DEAD = 3  # must be the last ROLE!
 
 # one coin flip, returns True with probability p
 def flip(p):
     return np.random.uniform() <= p
+
 
 # function decorator for game actions, ensures cleanup
 def action(f):
     def wrapper(*args):
         f(*args)
         args[0]._update_role_distributions()
+
     return wrapper
+
 
 class Game:
     def __init__(self):
-        self._world = sample_worlds(N, P, R, role_dist)
+        self._world = sample_worlds(N, P, R, ROLE_DIST)
         self._role_dist = None
         self._update_role_distributions()
 
+    def _get_highest_ranking_werewolf(self) -> np.ndarray:
+        """Returns array with the highest ranking werewolf per world.
+        This is an unholy spaghetti function.
+        """
+        wolve_roles = self._world[:, :, Roles.WOLVES.value] == 1
+        wolves_alive = (self._world[:, :, Roles.DEAD.value] == 0)[:, :, None]  # evil numpy magic
+        # manually helping numpy broadcasting here
+        alive_wolves = np.logical_and(wolve_roles, wolves_alive)
+        # only the columns left where the wolf is still alive
+        temp = alive_wolves.any(axis=1)
+        cols_where_wolf_type_still_alive = alive_wolves.any(axis=1)[:, None, :].astype(float)
+        # deliberately sets the values to nan if no wolf there
+        cols_where_wolf_type_still_alive[cols_where_wolf_type_still_alive == 0] = np.nan
+        alive_wolves = alive_wolves * cols_where_wolf_type_still_alive
+        temp = np.hstack([alive_wolves, np.zeros(alive_wolves.shape)])
+        highest_ranking_wolf: np.ndarray = np.nanargmax(temp, axis=1).astype(float)  # contains highest ranking wolf now
+        highest_ranking_wolf[highest_ranking_wolf == P] = np.nan
+        highest_ranking_wolf += np.arange(0, P*NUM_WOLVES, P) # we abuse that NaN + a = NaN.
+        highest_ranking_wolf = np.nanmin(highest_ranking_wolf, axis=1) # ignores nan
+        assert highest_ranking_wolf.size == self._world.shape[0], "Internal logical error"
+        return np.mod(highest_ranking_wolf, P)
+
     # represents the action that a werewolf starts a kill
     @action
-    def ww_kill(self, p1: int,  p2: int):
+    def ww_kill(self, p1: int, p2: int):
+        # mask that indicates in which worlds p1 is the currently highest ranking werewolf
         mask = self._world[:, p1, Roles.WEREWOLF.value] == 1
         # i think this is the fastest, sadly, we will see this more often
-        # sets player 2 dead in every world where p1 is a werewolf
+        # sets player 2 dead in every world where p1 is the currently highest ranking werewolf
         for i in range(mask.size):
             if mask[i]:
                 self._world[i, p2, Roles.DEAD.value] = 1
@@ -51,14 +63,14 @@ class Game:
     @action
     def seer_check(self, p1: int, p2: int):
         # check which role p2 could be having
-        evil = flip(self._role_dist[p2, Roles.WEREWOLF.value]) # True if p1 sees p2 as evil
+        evil = flip(self._role_dist[p2, Roles.WEREWOLF.value])  # True if p1 sees p2 as evil
         # eliminiation
-        mask_p1_seer = self._world[:, p1, Roles.SEER.value] == 1 # elim all universes where p1 is seer and p2 is not werewolf
-        if evil: # elim all universes where p2 is not evil
+        mask_p1_seer = self._world[:, p1, Roles.SEER.value] == 1  # elim all universes where p1 is seer and p2 is not werewolf
+        if evil:  # elim all universes where p2 is not evil
             mask_p2_villager = self._world[:, p2, Roles.VILLAGER.value]
             mask_p2_seer = self._world[:, p2, Roles.SEER]
             mask_p2 = np.logical_or(mask_p2_seer, mask_p2_seer)
-        else: # elim all universes where p2 is evil
+        else:  # elim all universes where p2 is evil
             mask_p2 = self._world[:, p2, Roles.WEREWOLF.value]
         mask_elim = np.logical_and(mask_p1_seer, mask_p2)
         self._world = self._world[np.logical_not(mask_elim)]
@@ -67,7 +79,7 @@ class Game:
     @action
     def lynch(self, player: int):
         # kills player
-        role = np.random.choice(R, p=self._role_dist[player, :-1]) # samples using the role dist array
+        role = np.random.choice(R, p=self._role_dist[player, :-1])  # samples using the role dist array
         print("Player %i was Role %i" % (player, role))
         # eliminates all universes where the player did not have that role
         mask_role = self._world[:, player, role] != 1
@@ -86,8 +98,14 @@ class Game:
     def _update_role_distributions(self):
         self._role_dist = self._world.mean(axis=0)
 
+
 game = Game()
 game.lynch(1)
-game.ww_kill(0, 2)
-game.ww_kill(2, 3)
-game.lynch(3)
+game.lynch(2)
+# game.lynch(3)
+# game.lynch(4)
+# game.lynch(5)
+ww = game._get_highest_ranking_werewolf()
+# game.ww_kill(0, 2)
+# game.ww_kill(2, 3)
+# game.lynch(3)
