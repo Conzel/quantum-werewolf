@@ -15,6 +15,8 @@ def load_asset(filename: str) -> str:
 
 
 _MENU_OVERVIEW_TEXT = load_asset("menu-overview.txt")
+_GAME_MENU_DAY_TEXT = load_asset("game_menu_day.txt")
+_GAME_MENU_NIGHT_TEXT = load_asset("game_menu_night.txt")
 
 
 def empty():
