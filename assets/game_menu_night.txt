@@ -1,0 +1,5 @@
+(1) Perform WW Attack
+(2) Perform Seer Check
+(3) See actions that were already done
+(4) See role distributions
+(5) Proceed
