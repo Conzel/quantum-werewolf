@@ -1,2 +1,4 @@
 (1) See role distributions
 (2) Lynch
+(3) Proceed (no lynch)
+(4) Exit
